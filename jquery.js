@@ -220,9 +220,11 @@
 			},
 
 			// Start with an empty selector
+			// 主要用于调试
 			selector: "",
 
 			// The current version of jQuery being used
+			// 依附于实例才能获取到该变量
 			jquery: "1.7.1",
 
 			// The default length of a jQuery object is 0
@@ -233,12 +235,15 @@
 				return this.length;
 			},
 
+			// 将当前jQuery对象转换为真正的数组
+			// Array.prototype.slice函数start->end浅拷贝
 			toArray: function () {
 				return slice.call(this, 0);
 			},
 
 			// Get the Nth element in the matched element set OR
 			// Get the whole matched element set as a clean array
+			// 支持负数下标
 			get: function (num) {
 				return num == null ?
 
@@ -251,23 +256,36 @@
 
 			// Take an array of elements and push it onto the stack
 			// (returning the new matched element set)
+			// pushStack其实并没有将什么东西添加到stack中，只是产生一空的jQuery对象，
+			// 然后将elems添加到这个空的jQuery对象上
+			// 核心方法！！！
 			pushStack: function (elems, name, selector) {
 				// Build a new jQuery matched element set
+				// 相当于$()产生一个空的jQuery对象
 				var ret = this.constructor();
 
+				// 此处的push方法就是，js提供的原生数组方法
+				// 如果elems是数组就使用数组的push方法
 				if (jQuery.isArray(elems)) {
 					push.apply(ret, elems);
 
 				} else {
+					// 如果elems是对象，就是用merge方法，将elems属性添加到空的jQuery对象上
 					jQuery.merge(ret, elems);
 				}
 
 				// Add the old object onto the stack (as a reference)
+				// 可能stack的含义是指这里吧
 				ret.prevObject = this;
 
+				// jQuery对象存在的上下文
+				// 注意此处的上下文不是父节点位置，而是document
+				// ret为空jQuery对象，ret.context为undefined
 				ret.context = this.context;
 
 				if (name === "find") {
+					//this.selector不为空时，添加一个空格
+					// 在this.selector下查找selector,修正selector
 					ret.selector = this.selector + (this.selector ? " " : "") + selector;
 				} else if (name) {
 					ret.selector = this.selector + "." + name + "(" + selector + ")";
@@ -280,6 +298,7 @@
 			// Execute a callback for every element in the matched set.
 			// (You can seed the arguments with an array of args, but this is
 			// only used internally.)
+			// 感觉each和map很相似，但是each不调用pushStack,没有返回值
 			each: function (callback, args) {
 				return jQuery.each(this, callback, args);
 			},
@@ -314,12 +333,16 @@
 					"slice", slice.call(arguments).join(","));
 			},
 
+			// map作用后，返回的任然是一个jQuery对象
+			// $app.map(fc) instanceof jQuery // true
 			map: function (callback) {
+				// jQuery.map,获取callback执行结果
 				return this.pushStack(jQuery.map(this, function (elem, i) {
 					return callback.call(elem, i, elem);
 				}));
 			},
 
+			// 返回上一层jQuery对象，或者返回一个空的jQuery对象
 			end: function () {
 				return this.prevObject || this.constructor(null);
 			},
@@ -332,9 +355,13 @@
 		};
 
 		// Give the init function the jQuery prototype for later instantiation
+		// jQuery中原型对象上init函数的额原型指向jQuery的原型
+		// 也就是说jQuery原型链上不会再有其他原型了？？
+		// $.prototype.init.prototype === $.prototype // true
 		jQuery.fn.init.prototype = jQuery.fn;
 
 		// 参数([deep], target, object1[, objectN])
+		// jQuery上扩展的核心方法
 		jQuery.extend = jQuery.fn.extend = function () {
 			// i指示开始合并的对象在arguments中的位置
 			var options, name, src, copy, copyIsArray, clone,
@@ -352,6 +379,7 @@
 			}
 
 			// Handle case when target is a string or something (possible in deep copy)
+			// 基本类型上设置非原生属性是无效的
 			if (typeof target !== "object" && !jQuery.isFunction(target)) {
 				target = {};
 			}
@@ -409,6 +437,11 @@
 			return target;
 		};
 
+		// 通过extend拓展的方法只能出现在该对象上
+		// 通过在prototype[原型上添加方法]可以被其他对象共享
+		// window.$就是一个jQuery对象，该对象被添加到window.$属性上，全局共享
+		// 通过$()产生的对象，不会共享$上的属性和方法，但是会共享prototype上的属性和方法
+		// 通过$.prototype.test = function(){console.log("test");}; $().test();// test
 		jQuery.extend({
 			noConflict: function (deep) {
 				if (window.$ === jQuery) {
@@ -654,14 +687,20 @@
 			},
 
 			// args is for internal usage only
+			// object,回调函数callback的作用对象，args为传入回调函数的参数
 			each: function (object, callback, args) {
+				// 对象也有可能有length属性
+				// {0: 'a', 1:'b', ..., length: 2}
 				var name, i = 0,
 					length = object.length,
 					isObj = length === undefined || jQuery.isFunction(object);
 
+				// 此处应该对args的类型进行判断，如果args不是数组或者对象，apply函数会报错
 				if (args) {
 					if (isObj) {
 						for (name in object) {
+							// 回调函数callback返回false，终止继续调用该回调函数
+							// [a, b, c, ...] 当callback.apply(b, args) 返回false时，就不会继续调用c了
 							if (callback.apply(object[name], args) === false) {
 								break;
 							}
@@ -676,6 +715,7 @@
 
 					// A special, fast, case for the most common use of each
 				} else {
+					// 如果没有传入参数，则会把【属性名/下标, 当前值】传入回调函数
 					if (isObj) {
 						for (name in object) {
 							if (callback.call(object[name], name, object[name]) === false) {
@@ -750,6 +790,8 @@
 				return -1;
 			},
 
+			// 将second上0,1,2,3,...属性添加到first上
+			// 并不是全部的属性
 			merge: function (first, second) {
 				var i = first.length,
 					j = 0;
@@ -793,14 +835,19 @@
 					i = 0,
 					length = elems.length,
 					// jquery objects are treated as arrays
+					// 所谓的类数组：包含使用从零开始，且自然递增的整数做键名，并且定义了length表示元素个数的对象
+					// instanceof运算符用来检测constructor.prototype是否存在于参数object的原型链上
+					// var a = {}; function f(){}; a.__proto__ = f.prototype; a instanceof f;//true 
 					isArray = elems instanceof jQuery || length !== undefined && typeof length === "number" && ((length > 0 && elems[0] && elems[length - 1]) || length === 0 || jQuery.isArray(elems));
 
 				// Go through the array, translating each of the items to their
+				// map函数是对每个元素进行作用，所以需要变量elems，对每个elems[i]应用callback
 				if (isArray) {
 					for (; i < length; i++) {
 						value = callback(elems[i], i, arg);
 
 						if (value != null) {
+							// 赋值之后，ret.length会自动增加
 							ret[ret.length] = value;
 						}
 					}
@@ -817,6 +864,8 @@
 				}
 
 				// Flatten any nested arrays
+				// [1,2,['a','b']] ==> [1,2,'a','b']
+				// concat 只能拉平一层：[1,2,['a','b',['1','2']]] ==> [1,2,'a','b',['1','2']]
 				return ret.concat.apply([], ret);
 			},
 
@@ -5568,6 +5617,7 @@
 		children: function (elem) {
 			return jQuery.sibling(elem.firstChild);
 		},
+		// 返回节点的内容，其实也是一个jquery对象，设置了preObject指向
 		contents: function (elem) {
 			return jQuery.nodeName(elem, "iframe") ?
 				elem.contentDocument || elem.contentWindow.document :
