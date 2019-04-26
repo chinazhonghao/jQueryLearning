@@ -1523,16 +1523,22 @@
 		},
 
 		// Deferred helper
+		// 如果传入多个异步队列，该方法将返回一个新的“主”异步队列的只读副本，这个副本将跟踪所传入的异步队列的最终状态
+		// 一旦所有异步队列都变为成功状态，“主“异步队列的成功回调函数将被调用，参数是包含了所有异步队列成功参数的数组
+		// 如果其中一个异步队列变为失败状态，主异步队列的失败回调函数将被调用，参数是失败异步队列的失败参数
+		// 也可以接受一个非异步队列作为参数，非异步队列被当做一个成功状态的异步队列
 		when: function (firstParam) {
 			// 为什么要这一步，复制吗？浅拷贝
 			var args = sliceDeferred.call(arguments, 0),
 				i = 0,
 				length = args.length,
 				pValues = new Array(length),
+				// count就是参数的个数
 				count = length,
 				pCount = length,
 				// 异步队列判定方法，只有异步队列有promise方法
-				// 也就是说如果传入参数是一个异步队列，则deferred采用传入参数，否则通过jQuery.Deferred方法从新生成一个异步队列对象
+				// 也就是说如果传入参数是一个异步队列，则deferred采用传入参数，
+				// 否则传入多个异步队列等情况，通过jQuery.Deferred方法从新生成一个异步队列对象
 				deferred = length <= 1 && firstParam && jQuery.isFunction(firstParam.promise) ?
 				firstParam :
 				jQuery.Deferred(),
@@ -1540,15 +1546,24 @@
 				promise = deferred.promise();
 
 			function resolveFunc(i) {
+				// 这里的函数时添加给外部的异步队列deferred来进行调用的
+				// 当外部的异步队列到达resolve状态时，就会调用这个函数
+				// 外部异步队列就是传入的参数
 				return function (value) {
+					// 此处会改变args的内容
+					// 把外部异步队列的成功参数放到args的对应位置上
 					args[i] = arguments.length > 1 ? sliceDeferred.call(arguments, 0) : value;
 					if (!(--count)) {
+						// deferred调用采用了闭包原理
+						// 此处只会有个异步队列（其实也就是最后一个执行的函数调用，count==0）会调用这个函数
 						deferred.resolveWith(deferred, args);
 					}
 				};
 			}
 
+			// 之所以通过这种方式返回另一个函数，是为了使用闭包机制，引用下标
 			function progressFunc(i) {
+				// 返回一个用于收集外部异步队列消息参数的回调函数，消息参数收集函数
 				return function (value) {
 					pValues[i] = arguments.length > 1 ? sliceDeferred.call(arguments, 0) : value;
 					deferred.notifyWith(promise, pValues);
@@ -1556,18 +1571,25 @@
 			}
 			if (length > 1) {
 				for (; i < length; i++) {
+					// 如果参数是异步队列对象（具有promise方法），则给给该对象添加有关方法
 					if (args[i] && args[i].promise && jQuery.isFunction(args[i].promise)) {
+						// 这里只是添加响应的回调函数
 						args[i].promise().then(resolveFunc(i), deferred.reject, progressFunc(i));
 					} else {
+						// 非异步队列被当做一个成功状态的异步队列
 						--count;
 					}
 				}
+				// count === 0 表示所有的回调函数都成功执行
+				// 此处是当所有的异步队列都执行成功了，然后立即调用
 				if (!count) {
 					deferred.resolveWith(deferred, args);
 				}
 			} else if (deferred !== firstParam) {
+				// 指定上下文和参数
 				deferred.resolveWith(deferred, length ? [firstParam] : []);
 			}
+			// 返回promise,通过promise来调用.done/.fail
 			return promise;
 		}
 	});
