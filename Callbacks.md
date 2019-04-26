@@ -1,0 +1,1 @@
+参考：http://api.jquery.com/jQuery.Callbacks/ 

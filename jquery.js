@@ -27,6 +27,8 @@
 				return new jQuery.fn.init(selector, context, rootjQuery);
 			},
 
+			// 备份传入的window中的jQuery和$属性
+			// 其实是利用了闭包原理
 			// Map over jQuery in case of overwrite
 			_jQuery = window.jQuery,
 
@@ -86,6 +88,10 @@
 			// Save a reference to some core methods
 			toString = Object.prototype.toString,
 			hasOwn = Object.prototype.hasOwnProperty,
+			// push方法不仅可以作用对于数组，也可以作用于对象
+			// var a = {0:'a',1:'b',2:'c', length:3};
+			// Array.prototype.push.apply(a, ["hello"]); 
+			// {0: "a", 1: "b", 2: "c", 3: "hello", length: 4}
 			push = Array.prototype.push,
 			slice = Array.prototype.slice,
 			trim = String.prototype.trim,
@@ -314,7 +320,10 @@
 			},
 
 			eq: function (i) {
+				// 转换成数字--返回值为数字或者Nan
 				i = +i;
+				// slice(-1) 获取最后一个元素
+				// slice(i, i+1) 获取第i个元素
 				return i === -1 ?
 					this.slice(i) :
 					this.slice(i, i + 1);
@@ -328,6 +337,14 @@
 				return this.eq(-1);
 			},
 
+			// 重新定义slice函数，pushStack返回jQuery对象
+			// Array.prototype.slice.apply(this, arguments);
+			// var a = {0:'a',1:'b',2:'c', length:3};
+			// Array.prototype.slice.apply(a); // ['a', 'b', 'c'] 注意此处apply用法，借鸡下蛋方式
+			// arguments.slice().join(",");// var b = [1,2,3]; b.slice().join(",");//"1,2,3"
+			// name = "slice", selector="slice.call(arguments").join(',');
+			// 将匹配元素集合缩减为指定范围的子集,传入参数一般为(start[, end]);
+			// 返回值是一个jQuery对象
 			slice: function () {
 				return this.pushStack(slice.apply(this, arguments),
 					"slice", slice.call(arguments).join(","));
@@ -351,6 +368,7 @@
 			// Behaves like an Array's method, not like a jQuery method.
 			push: push,
 			sort: [].sort,
+			// 向当前jQuery对象中插入、删除或替换元素
 			splice: [].splice
 		};
 
@@ -437,6 +455,7 @@
 			return target;
 		};
 
+		// jQuery扩展的静态属性和方法
 		// 通过extend拓展的方法只能出现在该对象上
 		// 通过在prototype[原型上添加方法]可以被其他对象共享
 		// window.$就是一个jQuery对象，该对象被添加到window.$属性上，全局共享
@@ -444,10 +463,14 @@
 		// 通过$.prototype.test = function(){console.log("test");}; $().test();// test
 		jQuery.extend({
 			noConflict: function (deep) {
+				// window下属性赋值
+				// 释放掉$,使window.$保留原来的引用
+				// 但是没有保留window.jQuery的引用
 				if (window.$ === jQuery) {
 					window.$ = _$;
 				}
 
+				// 保留window.jQuery的引用
 				if (deep && window.jQuery === jQuery) {
 					window.jQuery = _jQuery;
 				}
@@ -507,6 +530,7 @@
 
 				// Catch cases where $(document).ready() is called after the
 				// browser event has already occurred.
+				// 已经是ready状态了，通过setTimeout异步调用ready函数
 				if (document.readyState === "complete") {
 					// Handle it asynchronously to allow scripts the opportunity to delay ready
 					return setTimeout(jQuery.ready, 1);
@@ -515,6 +539,8 @@
 				// Mozilla, Opera and webkit nightlies currently support this event
 				if (document.addEventListener) {
 					// Use the handy event callback
+					// DOMContentLoaded是自定义函数-document.removeEventListener("DOMContentLoaded", DOMContentLoaded, false);
+					// 然后调用ready函数
 					document.addEventListener("DOMContentLoaded", DOMContentLoaded, false);
 
 					// A fallback to window.onload, that will always work
@@ -555,21 +581,25 @@
 			},
 
 			// A crude way of determining if an object is a window
-			// window对象中有setInterval属性
+			// window对象中有setInterval属性,window中特征属性setInterval
+			// 也可以检测window.window属性，来判断是否是window对象
 			isWindow: function (obj) {
 				return obj && typeof obj === "object" && "setInterval" in obj;
 			},
 
 			isNumeric: function (obj) {
+				// isFinite 判断无穷大情况
 				return !isNaN(parseFloat(obj)) && isFinite(obj);
 			},
 
+			// 如果参数是Javascript内部对象，则返回对应的字符串名称，其他情况一律返回""Object"
 			type: function (obj) {
 				return obj == null ?
 					String(obj) :
 					class2type[toString.call(obj)] || "object";
 			},
 
+			// 是否是用对象直接量{}或new Object()创建的对象
 			isPlainObject: function (obj) {
 				// Must be an Object.
 				// Because of IE, we also have to check the presence of the constructor property.
@@ -584,6 +614,10 @@
 				try {
 					// Not own constructor property must be Object
 					// 没有自己的构造函数属性的一定是对象
+					// 1. 对象含有constructor属性，由构造函数创建的对象都有一个constructor属性，默认引用了该对象的构造函数
+					// 如果对象没有constructor,则说明该对象必然是通过对象字面量{}创建的
+					// 2. constructor是非继承属性，默认情况下，属性constructor继承自构造函数的原型对象
+					// 如果属性constructor是非继承属性，说明该属性已经在自定义构造函数中被覆盖
 					if (obj.constructor &&
 						!hasOwn.call(obj, "constructor") &&
 						!hasOwn.call(obj.constructor.prototype, "isPrototypeOf")) {
@@ -603,6 +637,7 @@
 				return key === undefined || hasOwn.call(obj, key);
 			},
 
+			// 没有任何属性【包括继承属性】的就是空对象
 			isEmptyObject: function (obj) {
 				for (var name in obj) {
 					return false;
@@ -611,6 +646,7 @@
 			},
 
 			error: function (msg) {
+				// 调用JavaScript原生Error方法
 				throw new Error(msg);
 			},
 
@@ -629,6 +665,8 @@
 
 				// Make sure the incoming data is actual JSON
 				// Logic borrowed from http://json.org/json2.js
+				// var jsonData = "{\"a\":\"1\"}";
+				// (new Function("return" + jsonData))();// {a: "1"}
 				if (rvalidchars.test(data.replace(rvalidescape, "@")
 						.replace(rvalidtokens, "]")
 						.replace(rvalidbraces, ""))) {
@@ -654,17 +692,20 @@
 				} catch (e) {
 					xml = undefined;
 				}
+				// 在IE以外的浏览器中，如果解析失败，parseFromString不会抛出异常，会返回一个包含了错误信息的文档对象
 				if (!xml || !xml.documentElement || xml.getElementsByTagName("parsererror").length) {
 					jQuery.error("Invalid XML: " + data);
 				}
 				return xml;
 			},
 
+			// 空函数，什么也不做
 			noop: function () {},
 
 			// Evaluates a script in a global context
 			// Workarounds based on findings by Jim Driscoll
 			// http://weblogs.java.net/blog/driscoll/archive/2009/09/08/eval-javascript-global-context
+			// 用于在全局作用于中执行JavaScript代码
 			globalEval: function (data) {
 				if (data && rnotwhite.test(data)) {
 					// We use execScript on Internet Explorer
@@ -678,6 +719,7 @@
 
 			// Convert dashed to camelCase; used by the css and data modules
 			// Microsoft forgot to hump their vendor prefix (#9572)
+			// 转换连字符式为驼峰式
 			camelCase: function (string) {
 				return string.replace(rmsPrefix, "ms-").replace(rdashAlpha, fcamelCase);
 			},
@@ -688,6 +730,7 @@
 
 			// args is for internal usage only
 			// object,回调函数callback的作用对象，args为传入回调函数的参数
+			// 对于object上的每个元素调用callback回调函数
 			each: function (object, callback, args) {
 				// 对象也有可能有length属性
 				// {0: 'a', 1:'b', ..., length: 2}
@@ -751,6 +794,7 @@
 
 			// results is for internal usage only
 			makeArray: function (array, results) {
+				// ret不一定是真正的数组
 				var ret = results || [];
 
 				if (array != null) {
@@ -758,9 +802,12 @@
 					// Tweaked logic slightly to handle Blackberry 4.7 RegExp issues #6930
 					var type = jQuery.type(array);
 
+					// 参数array是window对象，属性length返回窗口中的框架(frame, iframe)个数[不是body或者其他标签的长度]
 					if (array.length == null || type === "string" || type === "function" || type === "regexp" || jQuery.isWindow(array)) {
+						// 由于ret不一定是真正的数组，所以需要在此处使用借鸡下蛋的方法
 						push.call(ret, array);
 					} else {
+						// 将array上1,2,3,...属性合并到ret上
 						jQuery.merge(ret, array);
 					}
 				}
@@ -768,6 +815,7 @@
 				return ret;
 			},
 
+			// 测试数组array中从下标i开始，是否有elem元素
 			inArray: function (elem, array, i) {
 				var len;
 
@@ -781,6 +829,7 @@
 
 					for (; i < len; i++) {
 						// Skip accessing in sparse arrays
+						// 跳过稀疏数组
 						if (i in array && array[i] === elem) {
 							return i;
 						}
@@ -790,7 +839,7 @@
 				return -1;
 			},
 
-			// 将second上0,1,2,3,...属性添加到first上
+			// 将second上0,1,2,3,...【连续整型属性的对象】属性添加到first上
 			// 并不是全部的属性
 			merge: function (first, second) {
 				var i = first.length,
@@ -812,6 +861,9 @@
 				return first;
 			},
 
+			// inv--invert反转，表示不一致才放入结果中
+			// inv为true表示callback结果需要为false才放入结果中
+			// inv为false表示callback结果需要为true才放入结果中
 			grep: function (elems, callback, inv) {
 				var ret = [],
 					retVal;
@@ -819,6 +871,7 @@
 
 				// Go through the array, only saving the items
 				// that pass the validator function
+				// 遍历数组，只存储通过callback回调函数的元素
 				for (var i = 0, length = elems.length; i < length; i++) {
 					retVal = !!callback(elems[i], i);
 					if (inv !== retVal) {
@@ -870,29 +923,46 @@
 			},
 
 			// A global GUID counter for objects
+			// 全局计数器，用于jQuery事件模块和缓存模块，在jQuery事件模块中，
+			// 每个事件监听函数会被设置一个guid属性，用来唯一标识这个函数；
+			// 在缓存模块中，通过在DOM元素上附加一个唯一标识，来关联该元素和该元素对应的缓存
 			guid: 1,
 
 			// Bind a function to a context, optionally partially applying any
 			// arguments.
+			// 接受一个函数返回一个新函数，新函数总是持有特定的上下文
+			// 类似于bind,apply,call
+			// 有两种用法：
+			// 1.jQuery.proxy(fn, context) 指定fn的上下文始终为参数context
+			// 2.jQuery.proxy(context, name) 参数name是context的属性，指定参数name对应的函数上下文文始终未参数context
 			proxy: function (fn, context) {
+				// 这里判断的就是第二种情况
 				if (typeof context === "string") {
+					// fn表示context，context表示fn中的一个属性
 					var tmp = fn[context];
 					context = fn;
+					// fn = fn[context]
 					fn = tmp;
 				}
 
 				// Quick check to determine if target is callable, in the spec
 				// this throws a TypeError, but we will just return undefined.
+				// 处理过后的fn必须是是一个函数，对函数做处理
 				if (!jQuery.isFunction(fn)) {
 					return undefined;
 				}
 
 				// Simulated bind
+				// 将参数组合一下
 				var args = slice.call(arguments, 2),
 					proxy = function () {
+						// 这里的arguments是调用proxy函数的参数
 						return fn.apply(context, args.concat(slice.call(arguments)));
 					};
 
+				// 为代理函数设置与原始函数相同的唯一标识guid，如果原始函数没有，则重新分配一个
+				// 相同的唯一标识将代理函数和原始函数关联了起来，在jQuery事件系统中，如果为DOM元素绑定了事件监听函数的代理函数
+				// 当移除事件时，即使传入的是原始函数，jQuery也能通过唯一标识guid移除正确的函数
 				// Set the guid of unique handler to the same of original handler, so it can be removed
 				proxy.guid = fn.guid = fn.guid || proxy.guid || jQuery.guid++;
 
@@ -901,6 +971,13 @@
 
 			// Mutifunctional method to get and set values to a collection
 			// The value/s can optionally be executed if it's a function
+			// 为集合elems中元素设置一个或多个属性值，或者读取第一个元素的属性值
+			// 为.attr(), .prop(), .css提供支持
+			// elems元素集合，通常是jQuery对象
+			// key: 属性名或含有键值对的对象
+			// value: 属性值或函数，当参数key是对象时，该参数为undefined
+			// exec: 布尔值，当属性值是函数时，该参数指示了是否执行函数
+			// 参数fn: 回调函数，同时支持读取和设置属性
 			access: function (elems, key, value, exec, fn, pass) {
 				var length = elems.length;
 
@@ -914,9 +991,11 @@
 
 				// Setting one attribute
 				if (value !== undefined) {
+					// value是函数的情况下
 					// Optionally, function values get executed if exec is true
 					exec = !pass && exec && jQuery.isFunction(value);
 
+					// 当exec为true时，获取value的返回值作为属性值
 					for (var i = 0; i < length; i++) {
 						fn(elems[i], key, exec ? value.call(elems[i], i, fn(elems[i], key)) : value, pass);
 					}
@@ -932,11 +1011,13 @@
 				return (new Date()).getTime();
 			},
 
+			// 浏览器嗅探：chrome和safari使用webkit作为内核引擎
 			// Use of jQuery.browser is frowned upon.
 			// More details: http://docs.jquery.com/Utilities/jQuery.browser
 			uaMatch: function (ua) {
 				ua = ua.toLowerCase();
 
+				// 判断浏览器类型
 				var match = rwebkit.exec(ua) ||
 					ropera.exec(ua) ||
 					rmsie.exec(ua) ||
@@ -1042,6 +1123,7 @@
 	var flagsCache = {};
 
 	// Convert String-formatted flags into Object-formatted ones and store in cache
+	// once memory unique stopOnFalse 标志处理
 	function createFlags(flags) {
 		var object = flagsCache[flags] = {},
 			i, length;
@@ -1052,7 +1134,8 @@
 		return object;
 	}
 
-	/*
+	/* 用来管理回调函数的一组方法的集合，通过fire在合适时机触发回调函数
+	 * 通过add来添加相关的回调函数集合
 	 * Create a callback list using the following parameters:
 	 *
 	 *	flags:	an optional list of space-separated flags that will change how
@@ -1062,29 +1145,44 @@
 	 * "fired" multiple times.
 	 *
 	 * Possible flags:
-	 *
+	 *  确保回调函数列表只能被触发一次--执行一次之后，即使再改变回调函数列表也不会再次执行回调函数列表
+	 *  也就是说调用第一次调用fire会执行回调函数列表，之后再调用fire不会执行回调函数列表
 	 *	once:			will ensure the callback list can only be fired once (like a Deferred)
-	 *
+	 *  记录上一次触发【回调函数列表】时的参数，之后添加的任何回调函数都将用记录的参数值立即调用
+	 *  其实是第二次add的时候会使用上次的参数立即执行加入的函数
 	 *	memory:			will keep track of previous values and will call any callback added
 	 *					after the list has been fired right away with the latest "memorized"
 	 *					values (like a Deferred)
-	 *
+	 *  确保一个回调函数只能被添加一次
 	 *	unique:			will ensure a callback can only be added once (no duplicate in the list)
-	 *
+	 *  当某个回调函数返回false时中断执行
 	 *	stopOnFalse:	interrupt callings when a callback returns false
+	 *  组合使用情况：
+	 *  1. once memory: 第一次调用fire时执行回调函数列表，以后再add回调函数时，不会再从头调用回调函数列表
+	 *     而是会直接调用add进的函数
 	 *
 	 */
+	// 返回一个链式工具对象，用于管理一组回调函数，支持添加、移除、触发、锁定和禁用回调函数
+	// flags用以改变回调函数列表的行为，不传flags则回调函数列表的行为类似于事件监听函数，能够被触发多次；
+	// 如果传入flags则如上面注释所述
 	jQuery.Callbacks = function (flags) {
 
 		// Convert flags from String-formatted to Object-formatted
 		// (we check in cache first)
+		// 先从缓存中查找是否已经解析过，如果没有解析过则进行参数解析
 		flags = flags ? (flagsCache[flags] || createFlags(flags)) : {};
 
 		var // Actual callback list
+		    // 存储回调函数列表
 			list = [],
 			// Stack of fire calls for repeatable lists
+			// 在可重复触发、正在执行的列表上，重复触发，将上下文和参数放入数组
 			stack = [],
 			// Last fire value (for non-forgettable lists)
+			// undefined 表示当前回调函数列表未被触发过
+			// 如果当前回调函数列表不是memory模式，则变量memory被赋值为true,间接表示当前回调函数列表已经被触发过
+			// 如果当前回调函数列表时memory模式，则变量memory被赋值为[context, args],其中存放了传入的上下文context
+			// 和参数args, 间接表示当前回调函数列表已经被触发过
 			memory,
 			// Flag to know if list is currently firing
 			firing,
@@ -1105,9 +1203,11 @@
 					elem = args[i];
 					type = jQuery.type(elem);
 					if (type === "array") {
+						// 如果参数为数组则递归处理
 						// Inspect recursively
 						add(elem);
 					} else if (type === "function") {
+						// 保证添加的是函数: unique标志处理
 						// Add if not in unique mode and callback is not in
 						if (!flags.unique || !self.has(elem)) {
 							list.push(elem);
@@ -1125,6 +1225,7 @@
 				firingLength = list.length;
 				for (; list && firingIndex < firingLength; firingIndex++) {
 					if (list[firingIndex].apply(context, args) === false && flags.stopOnFalse) {
+						// 此处标记memory为true, 表示遇到stopOnFlase了
 						memory = true; // Mark as halted
 						break;
 					}
@@ -1133,10 +1234,14 @@
 				if (list) {
 					if (!flags.once) {
 						if (stack && stack.length) {
+							// Array.prototype.shift 从数组中删除第一个元素，并返回该元素的值，并且改变数组的长度
+							// 感觉主要是应对memory模式，因为memory模式会在添加回调函数后触发fire
 							memory = stack.shift();
+							// 由于memory的设置，此处只是将上下文变量和参数放入stack中，并不会再次触发该函数
 							self.fireWith(memory[0], memory[1]);
 						}
 					} else if (memory === true) {
+						// stopOnFalse了，不再执行回调函数列表
 						self.disable();
 					} else {
 						list = [];
@@ -1144,6 +1249,7 @@
 				}
 			},
 			// Actual Callbacks object
+			// 闭包的形式返回开发的接口
 			self = {
 				// Add a callback or a collection of callbacks to the list
 				add: function () {
@@ -1152,12 +1258,15 @@
 						add(arguments);
 						// Do we need to add the callbacks to the
 						// current firing batch?
+						// 回调函数列表正在执行，则修正结束下标，使得新添加的回调函数也能够执行
 						if (firing) {
 							firingLength = list.length;
 							// With memory, if we're not firing then
 							// we should call right away, unless previous
 							// firing was halted (stopOnFalse)
 						} else if (memory && memory !== true) {
+							// 修正待执行的回调函数列表的首地址--从上次末尾开始
+							// 也就是执行新添加的函数
 							firingStart = length;
 							fire(memory[0], memory[1]);
 						}
@@ -1174,9 +1283,11 @@
 							for (var i = 0; i < list.length; i++) {
 								if (args[argIndex] === list[i]) {
 									// Handle firingIndex and firingLength
+									// 如果回调函数列表正在执行，要修正结束下标
 									if (firing) {
 										if (i <= firingLength) {
 											firingLength--;
+											// 同时修正正在执行的回调函数的下标，避免漏掉执行某个回调函数
 											if (i <= firingIndex) {
 												firingIndex--;
 											}
@@ -1201,6 +1312,7 @@
 						var i = 0,
 							length = list.length;
 						for (; i < length; i++) {
+							// 通过引用的对象判断相等
 							if (fn === list[i]) {
 								return true;
 							}
@@ -1235,7 +1347,9 @@
 					return !stack;
 				},
 				// Call all callbacks with the given context and arguments
+				// 使用指定的上下文和参数触发回调函数列表中的所有回调函数
 				fireWith: function (context, args) {
+					// !![] ==> true 但是 [] == false也是输出true,感觉很奇怪
 					if (stack) {
 						if (firing) {
 							if (!flags.once) {
@@ -1269,21 +1383,27 @@
 
 	jQuery.extend({
 
+		/*
+		* 该方法返回一个链式工具对象，支持添加多个回调函数到回调函数列表、触发回调函数列表、
+		* 传播任意同步或异步任务的成功或失败状态等功能，返回的链式工具对象称为“异步队列”
+		*/
 		Deferred: function (func) {
 			var doneList = jQuery.Callbacks("once memory"),
 				failList = jQuery.Callbacks("once memory"),
 				progressList = jQuery.Callbacks("memory"),
 				state = "pending",
 				lists = {
-					resolve: doneList,
-					reject: failList,
-					notify: progressList
+					resolve: doneList,//成功回调函数列表
+					reject: failList,//失败回调函数列表
+					notify: progressList//消息回调函数列表
 				},
+				// 构造的返回对象，对回调函数列表进行的封装
 				promise = {
-					done: doneList.add,
-					fail: failList.add,
-					progress: progressList.add,
+					done: doneList.add, // 添加成功回调函数
+					fail: failList.add, // 添加失败回调函数
+					progress: progressList.add, // 添加消息回调函数
 
+					// 返回异步队列的状态
 					state: function () {
 						return state;
 					},
@@ -1292,30 +1412,54 @@
 					isResolved: doneList.fired,
 					isRejected: failList.fired,
 
+					// 同时添加成功，失败以及消息回调函数
 					then: function (doneCallbacks, failCallbacks, progressCallbacks) {
 						deferred.done(doneCallbacks).fail(failCallbacks).progress(progressCallbacks);
 						return this;
 					},
+					// 用于将回调函数同时添加到成功回调函数列表doneList和失败回调函数列表failList
 					always: function () {
 						deferred.done.apply(deferred, arguments).fail.apply(deferred, arguments);
 						return this;
 					},
+					// 将fnDone, fnFail, fnProgress添加对应的Callbacks中
+					// 接受三个可选的过滤函数作为参数，用于过滤当前异步队列的状态和参数
+					// 并返回一个新的异步队列的只读副本，当前异步队列被触发时，过滤函数将被调用并把返回值传给只读副本
 					pipe: function (fnDone, fnFail, fnProgress) {
+						// 旧异步队列deferred, 新异步队列newDefer,并且作为函数参数传入
+						// 为jQuery对象中Deferred方法中传入一个参数func = function (newDefer){};
+						// 根据代码逻辑，在Deferred方法返回之前，会调用func.call(deferred, deferred)==>func(deferred)
+						// 也就是说调用function(deferred){} ==> newDefer表示deferred对象
+						// 传入函数的deferred并不是jQuery的deferred,调用jQuery.Deferred时，会创建一个新的deferred对象
 						return jQuery.Deferred(function (newDefer) {
+							/* 对于对象
+							{
+								done: [fnDone, "resolve"],
+								fail: [fnFail, "reject"],
+								progress: [fnProgress, "notify"]
+							}
+							中，每个属性都调用下面的回调函数
+							callback.apply(object[name], name, object[name])==>
+							callback.apply([fnDone, "resolve"], done, [fnDone, "resolve"])==>callback(done, [fnDone, "resolve"])
+							*/
 							jQuery.each({
 								done: [fnDone, "resolve"],
 								fail: [fnFail, "reject"],
 								progress: [fnProgress, "notify"]
 							}, function (handler, data) {
-								var fn = data[0],
-									action = data[1],
+								var fn = data[0], // fnDone等的回调函数，传入fnDone函数
+									action = data[1], // 回调函数的名称 resolve等
 									returned;
 								if (jQuery.isFunction(fn)) {
+									// deferred[done] ==> doneList.add; 将函数添加到doneList这个callbacks对象中
 									deferred[handler](function () {
+										// 由于func.call(deferred, deferred)方式调用，因此this表示deferred对象
 										returned = fn.apply(this, arguments);
 										if (returned && jQuery.isFunction(returned.promise)) {
+											// 同时添加成功、失败、消息回调函数列表
 											returned.promise().then(newDefer.resolve, newDefer.reject, newDefer.notify);
 										} else {
+											// 如果返回值不是异步队列或不支持异步队列功能，newDefer中的相应状态的回调函数被执行，参数为过滤函数的返回值
 											newDefer[action + "With"](this === deferred ? newDefer : this, [returned]);
 										}
 									});
@@ -1338,15 +1482,31 @@
 						return obj;
 					}
 				},
+				// 定义异步队列
+				// deferred为promise对象的副本，其中再次调用deferred.promise
+				// 可以再次返回promise对象的副本
+				// 或者为一个普通的JavaScript对象添加promise中的方法
+				// 这里就是为空对象{}添加promise对象中的方法
+				// 只读副本中只暴露了添加回调函数和判断状态的方法：done, fail, progress, then, always,
+				// state, pipe， 不包含触发执行和改变状态的方法：resolve, reject, notify, resolveWith
+				// rejectWith, notifyWith
 				deferred = promise.promise({}),
 				key;
 
+			// deferred["resolve"] ==> doneList.fire 绑定对应函数
+			// 为异步队列添加触发成功、失败、消息回调函数列表的方法
+			// 通过调用deferred.resolve触发doneList执行，以此类似
 			for (key in lists) {
 				deferred[key] = lists[key].fire;
 				deferred[key + "With"] = lists[key].fireWith;
 			}
 
 			// Handle state
+			// 为异步队列添加设置状态的回调函数，failList.disable, progressList.lock回调函数
+			// 上面通过promise方法获得的deferred只是具有查看状态和添加回调函数的功能
+			// 这里通过添加回调函数的功能，给异步队列deferred添加能够改变异步队列状态的方法
+			// 通过给完成队列（done）添加回调函数，设置state = resolved, 禁用失败回调函数列表，锁定消息回调函数列表
+			// 给失败队列添加（fail）添加回调函数，设置state = rejected，禁用成功回调函数列表，锁定消息回调函数列表
 			deferred.done(function () {
 				state = "resolved";
 			}, failList.disable, progressList.lock).fail(function () {
@@ -1364,15 +1524,19 @@
 
 		// Deferred helper
 		when: function (firstParam) {
+			// 为什么要这一步，复制吗？浅拷贝
 			var args = sliceDeferred.call(arguments, 0),
 				i = 0,
 				length = args.length,
 				pValues = new Array(length),
 				count = length,
 				pCount = length,
+				// 异步队列判定方法，只有异步队列有promise方法
+				// 也就是说如果传入参数是一个异步队列，则deferred采用传入参数，否则通过jQuery.Deferred方法从新生成一个异步队列对象
 				deferred = length <= 1 && firstParam && jQuery.isFunction(firstParam.promise) ?
 				firstParam :
 				jQuery.Deferred(),
+				// 再次返回一个promise副本
 				promise = deferred.promise();
 
 			function resolveFunc(i) {
@@ -2540,15 +2704,18 @@
 				nType = elem.nodeType;
 
 			// don't get/set attributes on text, comment and attribute nodes
+			// ELEMENT_NODE=1,ATTRIBUTE_NODE=2,TEXT_NODE=3,COMMENT_NODE=8
 			if (!elem || nType === 3 || nType === 8 || nType === 2) {
 				return;
 			}
 
+			// 类似于val,text等，jQuery对象已有内置函数可以直接调用
 			if (pass && name in jQuery.attrFn) {
 				return jQuery(elem)[name](value);
 			}
 
 			// Fallback to prop when attributes are not supported
+			// DOM元素才有getAttribute属性
 			if (typeof elem.getAttribute === "undefined") {
 				return jQuery.prop(elem, name, value);
 			}
@@ -3954,6 +4121,7 @@
 	 *  Released under the MIT, BSD, and GPL Licenses.
 	 *  More information: http://sizzlejs.com/
 	 */
+	// Sizzle选择器引擎部分
 	(function () {
 
 		var chunker = /((?:\((?:\([^()]+\)|[^()]+)+\)|\[(?:\[[^\[\]]*\]|['"][^'"]*['"]|[^\[\]'"]+)+\]|\\.|[^ >+~,(\[\\]+)+|[>+~])(\s*,\s*)?((?:.|\r|\n)*)/g,
@@ -9410,6 +9578,7 @@
 
 
 	// Expose jQuery to the global object
+	// 把jQuery对象赋值给window属性
 	window.jQuery = window.$ = jQuery;
 
 	// Expose jQuery as an AMD module, but only for AMD loaders that
