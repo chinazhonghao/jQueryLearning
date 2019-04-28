@@ -1387,6 +1387,14 @@
 		* 该方法返回一个链式工具对象，支持添加多个回调函数到回调函数列表、触发回调函数列表、
 		* 传播任意同步或异步任务的成功或失败状态等功能，返回的链式工具对象称为“异步队列”
 		*/
+		/**
+		 * $.Deferred()返回的对象和$.Deferred().promise(),返回对象是不同的
+		 * promise返回的对象上没有resolve这类可以改变deferred对象的状态的方法
+		 * 不能改变执行状态
+		 * 
+		 * deferred触发resolve或reject
+		 * promise中申明resolve或reject后应该做什么
+		 */
 		Deferred: function (func) {
 			var doneList = jQuery.Callbacks("once memory"),
 				failList = jQuery.Callbacks("once memory"),
@@ -1418,6 +1426,7 @@
 						return this;
 					},
 					// 用于将回调函数同时添加到成功回调函数列表doneList和失败回调函数列表failList
+					// 通过always添加的回调函数最终都会得到调用，不管最终状态是成功还是失败
 					always: function () {
 						deferred.done.apply(deferred, arguments).fail.apply(deferred, arguments);
 						return this;
@@ -1425,12 +1434,36 @@
 					// 将fnDone, fnFail, fnProgress添加对应的Callbacks中
 					// 接受三个可选的过滤函数作为参数，用于过滤当前异步队列的状态和参数
 					// 并返回一个新的异步队列的只读副本，当前异步队列被触发时，过滤函数将被调用并把返回值传给只读副本
+					/**
+					 * $.ajax("your/url", {
+							dataType: "json"
+						}).pipe(function(theOriginalData) {
+							return $.ajax("your/web/service/doSomethingWith", {
+								data: theOriginalData,
+								dataType: "json"
+							});
+						}).done(function(theFinalData) {
+							$.each(theFinalData, function(key, value) {
+								$("#" + key).val(value);
+							});
+						});
+					 */
 					pipe: function (fnDone, fnFail, fnProgress) {
 						// 旧异步队列deferred, 新异步队列newDefer,并且作为函数参数传入
 						// 为jQuery对象中Deferred方法中传入一个参数func = function (newDefer){};
 						// 根据代码逻辑，在Deferred方法返回之前，会调用func.call(deferred, deferred)==>func(deferred)
 						// 也就是说调用function(deferred){} ==> newDefer表示deferred对象
 						// 传入函数的deferred并不是jQuery的deferred,调用jQuery.Deferred时，会创建一个新的deferred对象
+						// pipe函数return的异步队列就是newDefer[不是这样的]；因为后面又调用了promise函数--返回的是newDefer中的promise对象
+						// demo
+						/**
+						 * var defer = $.Deferred();
+						 * var filtered = defer.pip(function(value){
+						 * 		return value * 2;
+						 * });
+						 * 进入调试环节，var old_promise = newDefer.promise();
+						 * old_promise === filtered // true
+						 */
 						return jQuery.Deferred(function (newDefer) {
 							/* 对于对象
 							{
@@ -1452,14 +1485,48 @@
 									returned;
 								if (jQuery.isFunction(fn)) {
 									// deferred[done] ==> doneList.add; 将函数添加到doneList这个callbacks对象中
+									// 此处的deferred为闭包机制中的deferred,也就是下面注释的*deferred*
+									// 实践中：
+									/*
+									* var defer = $.Deferred();
+									* filtered = defer.pipe(function( value ) {
+									*		return value * 2;
+									*	});
+									* 调试pipe可以测试：deferred === defer; // true
+									*/
+									// deferred["done"] = doneList.add; 完成回调函数列表添加回调函数
+									// deferred["done"]列表中添加能够触发newDefer fire的函数
 									deferred[handler](function () {
-										// 由于func.call(deferred, deferred)方式调用，因此this表示deferred对象
+										// 由于func.call(deferred, deferred)方式调用，因此this表示newDefer对象
+										// 这里的arguments就是调用deferred.resolve或者其他触发函数时传入的参数
+										// this === deferred
 										returned = fn.apply(this, arguments);
 										if (returned && jQuery.isFunction(returned.promise)) {
-											// 同时添加成功、失败、消息回调函数列表
+											// 在传入函数返回异步队列的情况下，将newDefer的相关触发函数（fire）加入到对应的回调函数列表中
+											// 这样当returned的对应回调函数列表触发后，就会触发newDefer对应的fire
+											/** 应用于这样的链式调用
+											 * var request = $.ajax( url, { dataType: "json" } ),
+												chained = request.pipe(function( data ) {
+													return $.ajax( url2, { data: { user: data.userId } } );
+												});
+												
+												chained.done(function( data ) {
+												// data retrieved from url2 as provided by the first request
+												});
+											 */
+											// 将newDefer.resolve加入到return.promise的成功回调函数中，当returned执行成功后，将会
+											// 执行newDefer的resolve函数，改变newDefer的状态，通过pipe函数返回的promise对象可以使用
+											// promise的添加回调函数的方法，来判断newDefer的执行状态，从而执行某些操作
 											returned.promise().then(newDefer.resolve, newDefer.reject, newDefer.notify);
 										} else {
 											// 如果返回值不是异步队列或不支持异步队列功能，newDefer中的相应状态的回调函数被执行，参数为过滤函数的返回值
+											// 根据传入参数func.call(...,...)的调用方法，这里面的this一般为传入参数newDefer，并不是闭包机制中的deferred
+											// 因为通过jQuery.Deferred()函数调用，该函数又进入一个新的变量区域，其中的deferred与jQuery.Deferred()被调用时所在
+											// 区域的deferred已经不一样了，而是一个新的promise对象
+											// 设置回调函数列表执行的上下文为当前的newDefer
+											// 直接触发newDefer的fireWith
+											// 通过闭包机制引用传入参数newDefer
+											// filter的作用，将传入函数的返回结果，通过fireWith方法传入回调函数列表中
 											newDefer[action + "With"](this === deferred ? newDefer : this, [returned]);
 										}
 									});
@@ -1471,8 +1538,22 @@
 					},
 					// Get a promise for this deferred
 					// If obj is provided, the promise aspect is added to the object
+					// 在原来的deferred对象上返回另一个deferred对象，后者只开放与改变执行状态
+					// 无关的方法（比如done和fail方法），屏蔽与改变执行状态有关的方法（比如resolve和reject方法）
+					// 从而使执行状态不能被改变
+					/**
+					 * 传入对象（包括函数）在该对象上加上promise的相关方法
+					 * 而且是通过闭包的原理引用doneList这些回调函数列表
+					 * demo
+					 * var dtd = $.Deferred();
+					 * var wait = function(){}
+					 * dtd.promise(wait);
+					 * wait.done(function(){ alert("哈哈，成功了！"); }).fail(function(){ alert("出错啦！"); });
+					 * dtd.resolve(); // 执行："哈哈，成功了！"
+					 */
 					promise: function (obj) {
 						if (obj == null) {
+							// 此处的promise是，闭包机制中定义的promise
 							obj = promise;
 						} else {
 							for (var key in promise) {
@@ -1490,6 +1571,7 @@
 				// 只读副本中只暴露了添加回调函数和判断状态的方法：done, fail, progress, then, always,
 				// state, pipe， 不包含触发执行和改变状态的方法：resolve, reject, notify, resolveWith
 				// rejectWith, notifyWith
+				// *deferred*
 				deferred = promise.promise({}),
 				key;
 
@@ -1497,7 +1579,7 @@
 			// 为异步队列添加触发成功、失败、消息回调函数列表的方法
 			// 通过调用deferred.resolve触发doneList执行，以此类似
 			for (key in lists) {
-				deferred[key] = lists[key].fire;
+				deferred[key] = lists[key].fire; // doneList.fire(args); 调用异步回调函数列表
 				deferred[key + "With"] = lists[key].fireWith;
 			}
 
@@ -1514,6 +1596,8 @@
 			}, doneList.disable, progressList.lock);
 
 			// Call given func if any
+			// func中可以接受deferred对象，在func中通过resolve等方法改变该deferred对象的执行状态
+			// 由此来执行相应的回调函数列表
 			if (func) {
 				func.call(deferred, deferred);
 			}
@@ -1527,6 +1611,7 @@
 		// 一旦所有异步队列都变为成功状态，“主“异步队列的成功回调函数将被调用，参数是包含了所有异步队列成功参数的数组
 		// 如果其中一个异步队列变为失败状态，主异步队列的失败回调函数将被调用，参数是失败异步队列的失败参数
 		// 也可以接受一个非异步队列作为参数，非异步队列被当做一个成功状态的异步队列
+		// 添加时参数应该是函数执行后返回的参数
 		when: function (firstParam) {
 			// 为什么要这一步，复制吗？浅拷贝
 			var args = sliceDeferred.call(arguments, 0),
