@@ -27,14 +27,12 @@
 				return new jQuery.fn.init(selector, context, rootjQuery);
 			},
 
-			// 保留原有的window.jQuery属性和window.$属性，通过调用jQuery.noConflict函数，可以恢复原有属性
 			// 备份传入的window中的jQuery和$属性
 			// 其实是利用了闭包原理
 			// Map over jQuery in case of overwrite
 			_jQuery = window.jQuery,
 
 			// Map over the $ in case of overwrite
-			// 保存window上原有的$
 			_$ = window.$,
 
 			// A central reference to the root jQuery(document)
@@ -59,8 +57,6 @@
 			trimRight = /\s+$/,
 
 			// Match a standalone tag
-			// \1 表示重复正则第一个圆括号内匹配到的内容
-			// <XXXX    >(</XXXXX>) --> 把XXXX tag提取出来
 			rsingleTag = /^<(\w+)\s*\/?>(?:<\/\1>)?$/,
 
 			// JSON RegExp
@@ -91,7 +87,6 @@
 			browserMatch,
 
 			// The deferred used on DOM ready
-			// 初始值为undefined, 通过判断是否是undefined来避免重复初始化
 			readyList,
 
 			// The ready event handler
@@ -114,23 +109,12 @@
 
 		jQuery.fn = jQuery.prototype = {
 			// constructor属性返回一个构造函数引用--》jQuery对象的instanceOf jQuery都是返回true，包括window.jQuery也是返回true
-			// 只是constructor不能使用isntanceof 运算符进行判断
-			// window.jQuery.__proto__ = window.jQuery.prototype
-			// window.jQuery instanceof window.jQuery 才是true, instanceof判断的是对象原型链__proto__上是否有目标对象的prototype属性
-			// ps. constructor只是原型对象的一个属性，通常将其设置为构造函数，方便通过原型链XX.constructor.prototype进行功能扩展
-			// context(上下文指向)：
-			// 	1. $("#id") 指向document,元素全局唯一，所以可以指向document
-			//  2. $("<tag></tag>") 或者$("<tag>abc</tag>") 是没有设置context属性的，从对象上也获取不到$div.context -> undefined
-			//  3. $(dom) 将dom转换成jQuery对象时，context指向dom节点本身
-			//  4. $("body") context指向document, 这是专门做了特殊处理
 			constructor: jQuery,
-			// rootjQuery并不是外部传入的，而是jQuery内部利用闭包维护的变量，定义在jQuery对象上
-			// rootjQuery指向document的jQuery对象
 			init: function (selector, context, rootjQuery) {
 				var match, elem, ret, doc;
 
 				// Handle $(""), $(null), or $(undefined)
-				// 1. 返回一个空的jQuery对象，上面没有各种实例属性，但是有原型属性
+				// 1. 返回一个空的jQuery对象
 				// 没有设置length,context等属性
 				if (!selector) {
 					return this;
@@ -166,14 +150,9 @@
 
 					} else {
 						// 正则表达式返回值是一个数组
-						// quickExpr本身就有匹配HTML tag的功能，为啥这里还要分开呢？？？？=》应该是为了性能，毕竟比正则表达式要快
-						// exec 匹配成功返回一个数组，完全匹配成功的文本将作为返回数组的第一项，
-						// 从第二项起，后续每项都对应正则表达式内捕获括号里匹配成功的文本
-						// 匹配失败返回null
-						// 详细说明：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/RegExp/exec
 						match = quickExpr.exec(selector);
 					}
-					// 上面获取的match，只关注match[1]代表是HTML Tag, match[2]代表是id形式
+
 					// Verify a match, and that no context was specified for #id
 					// 没有出传入上下文:match != null, (match[1] != null 或者 context==null)
 					if (match && (match[1] || !context)) {
@@ -188,7 +167,6 @@
 
 							// If a single string is passed in and it's a single tag
 							// just do a createElement and skip the rest
-							// 只能提取<div></div>这种格式的，不能提取<div>abc</div>这种的，即只是一个单纯的标签，不能带子节点
 							ret = rsingleTag.exec(selector);
 
 							if (ret) {
@@ -197,7 +175,6 @@
 									jQuery.fn.attr.call(selector, context, true);
 
 								} else {
-									// 这里创建的类型就不一样，单纯标签自己就createElement, 与下面的buildFragment不相同
 									selector = [doc.createElement(ret[1])];
 								}
 
@@ -253,7 +230,6 @@
 					this.context = selector.context;
 				}
 
-				// 将selector添加到this这个类数组里面，为什么要这么做呢????
 				return jQuery.makeArray(selector, this);
 			},
 
@@ -262,10 +238,10 @@
 			selector: "",
 
 			// The current version of jQuery being used
+			// 依附于实例才能获取到该变量
 			jquery: "1.7.1",
 
 			// The default length of a jQuery object is 0
-			// 类数组形式，可以通过Array.prototype.slice函数转换成数组
 			length: 0,
 
 			// The number of elements contained in the matched element set
@@ -283,12 +259,9 @@
 			// Get the whole matched element set as a clean array
 			// 支持负数下标
 			get: function (num) {
-				// 使用类型转换？不传的话undefined -> 0, null -> 0
-				// 等号比较转换：https://developer.mozilla.org/en-US/docs/Web/JavaScript/Equality_comparisons_and_sameness
-				// 在两等号比较时，undefined和null基本是等价的，不与Boolean,Number,String,Object等相等
 				return num == null ?
 
-					// Return a 'clean' array 纯数组，不再是对象数组的形式
+					// Return a 'clean' array
 					this.toArray() :
 
 					// Return just the object
@@ -299,7 +272,7 @@
 			// (returning the new matched element set)
 			// pushStack其实并没有将什么东西添加到stack中，只是产生一空的jQuery对象，
 			// 然后将elems添加到这个空的jQuery对象上
-			// 核心方法！！！--生成一个新jQuery对象，并链接到上一个jQuery对象上
+			// 核心方法！！！
 			pushStack: function (elems, name, selector) {
 				// Build a new jQuery matched element set
 				// 相当于$()产生一个空的jQuery对象
@@ -308,7 +281,6 @@
 				// 此处的push方法就是，js提供的原生数组方法
 				// 如果elems是数组就使用数组的push方法
 				if (jQuery.isArray(elems)) {
-					// jQuery对象时一个类数组，只能通过这种方式进行调用
 					push.apply(ret, elems);
 
 				} else {
@@ -317,15 +289,17 @@
 				}
 
 				// Add the old object onto the stack (as a reference)
-				// 可能stack的含义是指这里吧; 通过prevObject指向上一个jQuery对象
+				// 可能stack的含义是指这里吧
 				ret.prevObject = this;
 
 				// jQuery对象存在的上下文
+				// 注意此处的上下文不是父节点位置，而是document
+				// ret为空jQuery对象，ret.context为undefined
 				ret.context = this.context;
 
 				if (name === "find") {
+					//this.selector不为空时，添加一个空格
 					// 在this.selector下查找selector,修正selector
-					// 修正新jQuery对象中的选择符
 					ret.selector = this.selector + (this.selector ? " " : "") + selector;
 				} else if (name) {
 					ret.selector = this.selector + "." + name + "(" + selector + ")";
@@ -338,7 +312,7 @@
 			// Execute a callback for every element in the matched set.
 			// (You can seed the arguments with an array of args, but this is
 			// only used internally.)
-			// 单纯在jQuery类数组的每个对象上进行回调函数调用
+			// 感觉each和map很相似，但是each不调用pushStack,没有返回值
 			each: function (callback, args) {
 				return jQuery.each(this, callback, args);
 			},
@@ -347,11 +321,12 @@
 			// 在大多数情况下，只要DOM结构加载完成，脚本就可以尽快运行了，因此，通常最好把绑定事件和其他的jQuery代码都放到ready事件监听函数中
 			// 在IE9+和其他浏览器中绑定DOMContentLoaded事件，在IE9以下的浏览器绑定onreadystatechange事件
 			// 这两个事件都会在load事件之前被触发
-			// 在IE9以下版本的浏览器中，还有一种技巧是，不同地执行document.documentElement.doScroll("left"),直到不抛出异常为止
+			// 在IE9以下版本的浏览器中，还有一种技巧是，不同地执行document.documentElement.doScroll("left"),知道不抛出异常为止
 			// 重点：由于回调函数实现方法：$(document).on("ready", handler)有以下区别
 			// ready事件已经被触发后，再次尝试用方法.on("ready")绑定的ready事件监听函数将不会被执行，而用方法.ready(handler)
 			// 绑定的ready事件监听函数则会被执行，无论它是什么时候绑定的，之所以出现这种差异，是因为.ready()是基于回调函数列表实现的，而方法
-			// .on("ready")是基于数据缓存实现的			
+			// .on("ready")是基于数据缓存实现的	
+			// 每一个jQuery对象都有这么一个方法			
 			ready: function (fn) {
 				// Attach the listeners
 				jQuery.bindReady();
@@ -363,11 +338,10 @@
 			},
 
 			eq: function (i) {
-				// 类型转换，感觉还是不要使用这种技巧比较好
+				// 转换成数字--返回值为数字或者Nan
 				i = +i;
 				// slice(-1) 获取最后一个元素
 				// slice(i, i+1) 获取第i个元素
-				// slice使用的是jQuery原型上的方法
 				return i === -1 ?
 					this.slice(i) :
 					this.slice(i, i + 1);
@@ -388,13 +362,13 @@
 			// arguments.slice().join(",");// var b = [1,2,3]; b.slice().join(",");//"1,2,3"
 			// name = "slice", selector="slice.call(arguments").join(',');
 			// 将匹配元素集合缩减为指定范围的子集,传入参数一般为(start[, end]);
-			// 返回值是一个jQuery对象-->selector变为XXX.slice(1,2,3)这种形式，不是标准的CSS选择器[eg:#button.slice(0)]
+			// 返回值是一个jQuery对象
 			slice: function () {
 				return this.pushStack(slice.apply(this, arguments),
 					"slice", slice.call(arguments).join(","));
 			},
 
-			// map作用后，返回的任然是一个jQuery对象,原型链上的map没有副作用？会返回一个新的jQuery对象
+			// map作用后，返回的任然是一个jQuery对象
 			// $app.map(fc) instanceof jQuery // true
 			map: function (callback) {
 				// jQuery.map,获取callback执行结果
@@ -410,7 +384,6 @@
 
 			// For internal use only.
 			// Behaves like an Array's method, not like a jQuery method.
-			// 原型链上的方法，原生借用JS中原始方法
 			push: push,
 			sort: [].sort,
 			// 向当前jQuery对象中插入、删除或替换元素
@@ -419,7 +392,7 @@
 
 		// Give the init function the jQuery prototype for later instantiation
 		// jQuery中原型对象上init函数的额原型指向jQuery的原型
-		// 也就是说jQuery原型链上不会再有其他原型了？？不太明白为什么要这么做????
+		// 也就是说jQuery原型链上不会再有其他原型了？？
 		// $.prototype.init.prototype === $.prototype // true
 		jQuery.fn.init.prototype = jQuery.fn;
 
@@ -442,28 +415,23 @@
 			}
 
 			// Handle case when target is a string or something (possible in deep copy)
-			// 对象，数组， typeof都是object
-			// function typeof 是 function, 也就是说object类型和function类型都可以直接扩展
+			// 基本类型上设置非原生属性是无效的--typeof [] => object,也就是说数组也是对象的一种
+			// 对象，数组以及函数都可以直接设置属性
 			if (typeof target !== "object" && !jQuery.isFunction(target)) {
 				target = {};
 			}
 
 			// extend jQuery itself if only one argument is passed
 			// 此处--i表示target没有传递，使用jQuery来代替
-			// 同时，i指示要开始合并的第一个元素开始位置;
-			// 包含两种情况：$.extend(true, {}) 此时i=2, length=2; $.extent({}) 此时i=1, length=1
-			// 其实这里只要传入两个及其以上的对象参数就不会合并到jQuery本身上了，是不是应该给个选项比较好
+			// 同时，i指示要开始合并的第一个元素开始位置
 			if (length === i) {
 				target = this;
-				// 把jQuery本身当做合并目标对象，arguments[i]位置当做被合并的对象
 				--i;
 			}
 
 			// 合并多个对象到target对象上
 			for (; i < length; i++) {
 				// Only deal with non-null/undefined values
-				// 在双等号比较中，null和undefined是等价的，不与其他类型等价
-				// 双等号比较中和Boolean强制类型转换中是不等价的，参考Boolean强制类型转换为false的情况
 				if ((options = arguments[i]) != null) {
 					// Extend the base object
 					for (name in options) {
@@ -471,18 +439,9 @@
 						copy = options[name];
 
 						// Prevent never-ending loop
-						// 避免target上的属性又指向其本身，而导致的循环
-						/**
-						 * var a = {"name":"aaa"};
-							var b = {"name":"bbb"};
-							a.child = b;
-							b.parent = a;
-							$.extend(true,{},a);//直接报了栈溢出。Uncaught RangeError: Maximum call stack size exceeded
-						 */
-						// 注意是循环引用，两个对象直接互相有可达的引用才会造成循环依赖
-						// 参考:https://github.com/wengjq/Blog/issues/3
 						if (target === copy) {
-							continue;
+							//continue;
+							console.log("equals");
 						}
 
 						// Recurse if we're merging plain objects or arrays
@@ -490,8 +449,6 @@
 						// 纯对象不包括DOM对象和window对象，以及继承而来的对象
 						if (deep && copy && (jQuery.isPlainObject(copy) || (copyIsArray = jQuery.isArray(copy)))) {
 							// copy是数组,[1,2,3,...]
-							// 如果src对象类型和copy对象类型不一致，则以copy类型为准
-							// 此处使用了新对象，避免单个依赖的循环
 							if (copyIsArray) {
 								copyIsArray = false;
 								// 如果src不是数组，则clone为[]
@@ -529,8 +486,6 @@
 				// window下属性赋值
 				// 释放掉$,使window.$保留原来的引用
 				// 但是没有保留window.jQuery的引用
-				// 这里相同给的话，为什么又要赋值回来呢????不相同的话就赋值了
-				// 自动执行函数会主动给window.$赋值为jQuery对象，通过这个函数是把原有的window.$属性设置回来
 				if (window.$ === jQuery) {
 					window.$ = _$;
 				}
@@ -550,7 +505,6 @@
 			// A counter to track how many items to wait for before
 			// the ready event fires. See #6781
 			// 全局ready事件等待计数器，记录在ready事件触发前等待的次数
-			// 初始化为1，代表DOM Ready事件，和下面的逻辑相匹配，个人认为其实可以设置为0的
 			readyWait: 1,
 
 			// Hold (or release) the ready event
@@ -574,24 +528,16 @@
 				// Either a released hold or an DOMready/load event and not yet ready
 				// jQuery.readyWait延迟执行ready函数标志
 				// jQuery.isReady指示if语句块中的内容只被执行一次
-				/**
-				 * 两种情况：1. wait为true时，readyWait为0时执行
-				 * 2. wait不为true时，isReady不为true时执行
-				 */
 				if ((wait === true && !--jQuery.readyWait) || (wait !== true && !jQuery.isReady)) {
 					// Make sure body exists, at least, in case IE gets a little overzealous (ticket #5443).
 					if (!document.body) {
-						// 下一个task时执行，在这一个事件循环的microtask阶段就会更新dom了
 						return setTimeout(jQuery.ready, 1);
 					}
 
 					// Remember that the DOM is ready
-					// 通过和上面的!jQuery.isReady配合使用保证这段代码只执行一次
 					jQuery.isReady = true;
 
 					// If a normal DOM Ready event fired, decrement, and wait if need be
-					// 如果DOM Ready信号发起了，但是holdReady并没有释放，则继续等待
-					// 上面：readyWait初始化为1，这里减1刚好呼应
 					if (wait !== true && --jQuery.readyWait > 0) {
 						return;
 					}
@@ -600,7 +546,6 @@
 					readyList.fireWith(document, [jQuery]);
 
 					// Trigger any bound ready events
-					// 这点有点奇怪????
 					if (jQuery.fn.trigger) {
 						jQuery(document).trigger("ready").off("ready");
 					}
@@ -621,7 +566,6 @@
 				// Catch cases where $(document).ready() is called after the
 				// browser event has already occurred.
 				// 已经是ready状态了，通过setTimeout异步调用ready函数
-				// 这是在readyList回调队列未初始化的基础上的，如果初始化过了，就不会执行这段逻辑了
 				/**
 				 * 有四种可能值：
 				 * 1. uninitialized 尚未开始加载
@@ -640,7 +584,6 @@
 					// Use the handy event callback
 					// DOMContentLoaded是自定义函数-document.removeEventListener("DOMContentLoaded", DOMContentLoaded, false);
 					// 然后调用ready函数
-					// false属性用来指示在事件冒泡阶段进行响应
 					document.addEventListener("DOMContentLoaded", DOMContentLoaded, false);
 
 					// A fallback to window.onload, that will always work
@@ -697,7 +640,6 @@
 
 			// 如果参数是Javascript内部对象，则返回对应的字符串名称，其他情况一律返回""Object"
 			type: function (obj) {
-				// == 判断为true的两种类型：undefined, null, 通过String转换输出"null", "undefined"字符串
 				return obj == null ?
 					String(obj) :
 					class2type[toString.call(obj)] || "object";
@@ -717,7 +659,11 @@
 
 				try {
 					// Not own constructor property must be Object
-					// 没有自己的构造函数属性的一定是对象, 但是其构造函数的原型对象上有isPrototypeOf属性
+					// 没有自己的构造函数属性的一定是对象
+					// 1. 对象含有constructor属性，由构造函数创建的对象都有一个constructor属性，默认引用了该对象的构造函数
+					// 如果对象没有constructor,则说明该对象必然是通过对象字面量{}创建的
+					// 2. constructor是非继承属性，默认情况下，属性constructor继承自构造函数的原型对象
+					// 如果属性constructor是非继承属性，说明该属性已经在自定义构造函数中被覆盖
 					if (obj.constructor &&
 						!hasOwn.call(obj, "constructor") &&
 						!hasOwn.call(obj.constructor.prototype, "isPrototypeOf")) {
@@ -739,8 +685,6 @@
 
 			// 没有任何属性【包括继承属性】的就是空对象
 			isEmptyObject: function (obj) {
-				// for in 循环会遍历原型链，但是只会遍历可枚举属性
-				// 参考：https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Enumerability_and_ownership_of_properties
 				for (var name in obj) {
 					return false;
 				}
@@ -753,17 +697,6 @@
 			},
 
 			parseJSON: function (data) {
-				// 这点有点奇怪啊，必须得是基础类型string才行，包装类型按理说也可以支持才对
-				// new String("...")这种对象就无法解析
-				/**
-				 * JS中布尔值为false的六种情况：（都是基本数据类型）
-				 * 1. undefined
-				 * 2. null
-				 * 3. false
-				 * 4. 0
-				 * 5. NaN
-				 * 6. ""(空字符串)
-				 */
 				if (typeof data !== "string" || !data) {
 					return null;
 				}
@@ -783,7 +716,7 @@
 				if (rvalidchars.test(data.replace(rvalidescape, "@")
 						.replace(rvalidtokens, "]")
 						.replace(rvalidbraces, ""))) {
-					// 为什么要通过一个函数来返回呢????
+
 					return (new Function("return " + data))();
 
 				}
@@ -851,7 +784,7 @@
 					length = object.length,
 					isObj = length === undefined || jQuery.isFunction(object);
 
-				// 排除那六种会转换为false的基本类型，一般都是不传参数，则args为undefined
+				// 此处应该对args的类型进行判断，如果args不是数组或者对象，apply函数会报错
 				if (args) {
 					if (isObj) {
 						for (name in object) {
@@ -870,7 +803,6 @@
 					}
 
 					// A special, fast, case for the most common use of each
-					// 经常使用的方法
 				} else {
 					// 如果没有传入参数，则会把【属性名/下标, 当前值】传入回调函数
 					if (isObj) {
@@ -900,7 +832,6 @@
 				} :
 
 				// Otherwise use our own trimming functionality
-				// 使用正则来去除空格
 				function (text) {
 					return text == null ?
 						"" :
@@ -918,7 +849,6 @@
 					var type = jQuery.type(array);
 
 					// 参数array是window对象，属性length返回窗口中的框架(frame, iframe)个数[不是body或者其他标签的长度]
-					// 
 					if (array.length == null || type === "string" || type === "function" || type === "regexp" || jQuery.isWindow(array)) {
 						// 由于ret不一定是真正的数组，所以需要在此处使用借鸡下蛋的方法
 						push.call(ret, array);
@@ -945,7 +875,7 @@
 
 					for (; i < len; i++) {
 						// Skip accessing in sparse arrays
-						// 跳过稀疏数组（下标是不连续的）
+						// 跳过稀疏数组
 						if (i in array && array[i] === elem) {
 							return i;
 						}
@@ -962,7 +892,6 @@
 					j = 0;
 
 				if (typeof second.length === "number") {
-					// 这里又没有过滤稀疏数组，感觉jQuery整个写的格式不太统一
 					for (var l = second.length; j < l; j++) {
 						first[i++] = second[j];
 					}
@@ -979,7 +908,8 @@
 			},
 
 			// inv--invert反转，表示不一致才放入结果中
-			// 过滤，通过inv指示是选择正向过滤还是反向过滤
+			// inv为true表示callback结果需要为false才放入结果中
+			// inv为false表示callback结果需要为true才放入结果中
 			grep: function (elems, callback, inv) {
 				var ret = [],
 					retVal;
@@ -1035,7 +965,6 @@
 				// Flatten any nested arrays
 				// [1,2,['a','b']] ==> [1,2,'a','b']
 				// concat 只能拉平一层：[1,2,['a','b',['1','2']]] ==> [1,2,'a','b',['1','2']]
-				// 这里为什么要进行拉平操作呢????
 				return ret.concat.apply([], ret);
 			},
 
@@ -1052,7 +981,6 @@
 			// 有两种用法：
 			// 1.jQuery.proxy(fn, context) 指定fn的上下文始终为参数context
 			// 2.jQuery.proxy(context, name) 参数name是context的属性，指定参数name对应的函数上下文文始终未参数context
-			//   --》从上下文中选出特定的属性，该属性值也是一个函数，可能是应用起来更改灵活--》不同的context中可以使用同一个属性
 			proxy: function (fn, context) {
 				// 这里判断的就是第二种情况
 				if (typeof context === "string") {
@@ -1071,10 +999,10 @@
 				}
 
 				// Simulated bind
-				// 将从2...开始的参数复制一份，成一个标准的数组
+				// 将参数组合一下
 				var args = slice.call(arguments, 2),
 					proxy = function () {
-						// 为什么要再次concat呢？再把context和属性传进去????
+						// 这里的arguments是调用proxy函数的参数
 						return fn.apply(context, args.concat(slice.call(arguments)));
 					};
 
@@ -1096,14 +1024,10 @@
 			// value: 属性值或函数，当参数key是对象时，该参数为undefined
 			// exec: 布尔值，当属性值是函数时，该参数指示了是否执行函数
 			// 参数fn: 回调函数，同时支持读取和设置属性
-			/**
-			 * 在元素上执行回调函数
-			 */
 			access: function (elems, key, value, exec, fn, pass) {
 				var length = elems.length;
 
 				// Setting many attributes
-				// 一种简便写法吧
 				if (typeof key === "object") {
 					for (var k in key) {
 						jQuery.access(elems, k, key[k], exec, fn, value);
@@ -1118,7 +1042,6 @@
 					exec = !pass && exec && jQuery.isFunction(value);
 
 					// 当exec为true时，获取value的返回值作为属性值
-					// 这里又没有判断elems是数据、类数组!!!!
 					for (var i = 0; i < length; i++) {
 						fn(elems[i], key, exec ? value.call(elems[i], i, fn(elems[i], key)) : value, pass);
 					}
@@ -1152,12 +1075,10 @@
 				};
 			},
 
-			// 返回一个以当前jQuery对象为父对象的jQuery
 			sub: function () {
 				function jQuerySub(selector, context) {
 					return new jQuerySub.fn.init(selector, context);
 				}
-				// this指向调用函数的对象
 				jQuery.extend(true, jQuerySub, this);
 				jQuerySub.superclass = this;
 				jQuerySub.fn = jQuerySub.prototype = this();
@@ -1201,7 +1122,6 @@
 		}
 
 		// All jQuery objects should point back to these
-		// rootjQuery指向document的jQuery对象
 		rootjQuery = jQuery(document);
 
 		// Cleanup functions for the document ready method
@@ -1733,7 +1653,7 @@
 		},
 
 		// Deferred helper
-		// 如果传入多个异步队列，该方法将返回一个新的“主”异步队列的只读副本，这个副本将跟踪���传入的异步队列的最终状态
+		// 如果传入多个异步队列，该方法将返回一个新的“主”异步队列的只读副本，这个副本将跟踪所传入的异步队列的最终状态
 		// 一旦所有异步队列都变为成功状态，“主“异步队列的成功回调函数将被调用，参数是包含了所有异步队列成功参数的数组
 		// 如果其中一个异步队列变为失败状态，主异步队列的失败回调函数将被调用，参数是失败异步队列的失败参数
 		// 也可以接受一个非异步队列作为参数，非异步队列被当做一个成功状态的异步队列
